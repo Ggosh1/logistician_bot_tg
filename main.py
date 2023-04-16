@@ -73,7 +73,7 @@ async def choose_city_from(update, context):
     msg = update.message.text
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
-        city_from = query.data
+        city_from = query.data[5:]
         context.user_data['city_from'] = city_from
         inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_москва'),
                             InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт-петербург')],
@@ -100,7 +100,6 @@ async def choose_city_from(update, context):
             reply_markup=markup
         )
         return 3
-
     else:  # юзер ввел текст сам
         city_from = msg.lower()
         # TODO: через геокодер предлагаем варианты
@@ -110,10 +109,10 @@ async def choose_city_to(update, context):
     msg = update.message.text
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
-        city_to = query.data
+        city_to = query.data[5:]
         context.user_data['city_to'] = city_to
         await update.message.reply_html(
-            f"Введите суммарный вес посылки"
+            f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
         )
         return 4
     else:  # юзер ввел текст сам
@@ -121,14 +120,52 @@ async def choose_city_to(update, context):
         # TODO: через геокодер предлагаем варианты
 
 
-async def read_weight(update, context):
+
+async def read_places(update, context):
     msg = update.message.text
     try:
-        weight = int(msg)
+        places = int(msg)
+        context.user_data['places'] = places
+        await update.message.reply_html(
+            f"Введите вес в кг на одно место"
+        )
+        return 5
 
     except ValueError:
         # TODO: некорректное значение
         pass
+
+
+async def read_weight(update, context):
+    msg = update.message.text
+    try:
+        weight = int(msg)
+        context.user_data['weight'] = weight
+        reply_keyboard = [[InlineKeyboardButton('мм', callback_data='#units_mm'),
+                           InlineKeyboardButton('см', callback_data='#units_sm'),
+                           InlineKeyboardButton('метр', callback_data='#units_m')]]
+        markup = InlineKeyboardMarkup(reply_keyboard)
+        await update.message.reply_html(
+            f"Введите единицы измерения размеров груза (одно место)", reply_markup=markup
+        )
+        return 6
+
+    except ValueError:
+        # TODO: некорректное значение
+        pass
+
+
+async def read_units(update, context):
+    query = update.callback_query
+    if query.data[7:] == 'mm':
+        context.user_data['volume_coef'] = 0.001 ** 3
+    elif query.data[7:] == 'sm':
+        context.user_data['volume_coef'] = 0.01 ** 3
+    elif query.data[7:] == 'sm':
+
+    await update.message.reply_html(f"Введите размеры груза (одно место)")
+
+
 
 
 async def stop(update, context):
@@ -146,7 +183,9 @@ def main():
                 CallbackQueryHandler(choose_city_from, pattern='^' + '#city_', )],
             3: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_city_to),
                 CallbackQueryHandler(choose_city_to, pattern='^' + '#city_')],
-            4: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_weight)]
+            4: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_places)],
+            5: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_weight)],
+            6: [CallbackQueryHandler(read_units, pattern='^' + '#units_')]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
