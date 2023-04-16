@@ -3,6 +3,7 @@ from telegram.ext import Application, MessageHandler, filters, ConversationHandl
 from config import BOT_TOKEN
 from telegram.ext import CommandHandler
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+import pec_api
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -70,7 +71,6 @@ async def chosen_option(update, context):
 
 
 async def choose_city_from(update, context):
-    msg = update.message.text
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
         city_from = query.data[5:]
@@ -95,30 +95,30 @@ async def choose_city_from(update, context):
                             InlineKeyboardButton('Тюмень', callback_data='#city_тюмень')],
                            [InlineKeyboardButton('В начало', callback_data='to_start')]]
         markup = InlineKeyboardMarkup(inline_keyboard)
-        await update.message.reply_html(
-            f"Напишите город получателя или выберите один из самых популярных вариантов",
-            reply_markup=markup
-        )
+        await context.bot.send_message(chat_id=update.effective_user.id,
+                                      text=f"Напишите город получателя или выберите один из самых популярных вариантов",
+                                      reply_markup=markup
+                                      )
         return 3
     else:  # юзер ввел текст сам
+        msg = update.message.text
         city_from = msg.lower()
         # TODO: через геокодер предлагаем варианты
 
 
 async def choose_city_to(update, context):
-    msg = update.message.text
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
         city_to = query.data[5:]
         context.user_data['city_to'] = city_to
-        await update.message.reply_html(
-            f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
-        )
+        await context.bot.send_message(chat_id=update.effective_user.id,
+                                      text=f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
+                                      )
         return 4
     else:  # юзер ввел текст сам
+        msg = update.message.text
         city_from = msg.lower()
         # TODO: через геокодер предлагаем варианты
-
 
 
 async def read_places(update, context):
@@ -145,9 +145,9 @@ async def read_weight(update, context):
                            InlineKeyboardButton('см', callback_data='#units_sm'),
                            InlineKeyboardButton('метр', callback_data='#units_m')]]
         markup = InlineKeyboardMarkup(reply_keyboard)
-        await update.message.reply_html(
-            f"Введите единицы измерения размеров груза (одно место)", reply_markup=markup
-        )
+        await context.bot.send_message(chat_id=update.effective_user.id,
+                                      text=f"Введите единицы измерения размеров груза (одно место)",
+                                      reply_markup=markup)
         return 6
 
     except ValueError:
@@ -158,14 +158,52 @@ async def read_weight(update, context):
 async def read_units(update, context):
     query = update.callback_query
     if query.data[7:] == 'mm':
-        context.user_data['volume_coef'] = 0.001 ** 3
+        context.user_data['volume_coef'] = 0.001
     elif query.data[7:] == 'sm':
-        context.user_data['volume_coef'] = 0.01 ** 3
-    elif query.data[7:] == 'sm':
+        context.user_data['volume_coef'] = 0.01
+    elif query.data[7:] == 'm':
+        context.user_data['volume_coef'] = 1
+    await context.bot.send_message(chat_id=update.effective_user.id,
+        text=f"Введите ширину, длину, высоту груза (на одно место) через пробел\n\nПример:\n20 30 50")
+    return 7
 
-    await update.message.reply_html(f"Введите размеры груза (одно место)")
+
+async def read_sizes(update, context):
+    try:
+        msg = update.message.text
+        width, long, height = map(lambda x: int(x) * context.user_data['volume_coef'], msg.split(' '))
+        context.user_data['sizes'] = [width, height, long]
+        reply_keyboard = [[InlineKeyboardButton('да', callback_data='#gabarit_yes'),
+                           InlineKeyboardButton('нет', callback_data='#gabarit_no')]]
+        markup = InlineKeyboardMarkup(reply_keyboard)
+        await update.message.reply_html(f"Вашему грузу нужна защитная транспортная упаковка?", reply_markup=markup)
+        return 8
+    except Exception:
+        # TODO: некорректное значение
+        pass
 
 
+async def ztu(update, context):
+    query = update.callback_query
+    if query.data[9:] == 'yes':
+        context.user_data['ztu'] = True
+    elif query.data[9:] == 'no':
+        context.user_data['ztu'] = False
+    await calculate(update, context)
+
+
+async def calculate(update, context):
+    city_from = context.user_data['city_from']
+    city_to = context.user_data['city_to']
+    places = context.user_data['places']
+    weight = context.user_data['weight']
+    width, long, height = context.user_data['sizes']
+    ztu = context.user_data['ztu']
+    info = pec_api.get_info_delivery(city_from=city_from, city_to=city_to,
+                                     weight=weight, width=width, long=long, height=height,
+                                     volume=width * long * height, is_gabarit=True, need_protected_package=ztu,
+                                     places=places)
+    print(info)
 
 
 async def stop(update, context):
@@ -185,7 +223,9 @@ def main():
                 CallbackQueryHandler(choose_city_to, pattern='^' + '#city_')],
             4: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_places)],
             5: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_weight)],
-            6: [CallbackQueryHandler(read_units, pattern='^' + '#units_')]
+            6: [CallbackQueryHandler(read_units, pattern='^' + '#units_')],
+            7: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_sizes)],
+            8: [CallbackQueryHandler(ztu, pattern='^' + '#gabarit_')]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
