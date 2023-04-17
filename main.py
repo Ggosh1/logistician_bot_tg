@@ -73,7 +73,7 @@ async def chosen_option(update, context):
 async def choose_city_from(update, context):
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
-        city_from = query.data[5:]
+        city_from = query.data[6:]
         context.user_data['city_from'] = city_from
         inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_москва'),
                             InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт-петербург')],
@@ -109,7 +109,7 @@ async def choose_city_from(update, context):
 async def choose_city_to(update, context):
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
-        city_to = query.data[5:]
+        city_to = query.data[6:]
         context.user_data['city_to'] = city_to
         await context.bot.send_message(chat_id=update.effective_user.id,
                                       text=f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
@@ -193,17 +193,46 @@ async def ztu(update, context):
 
 
 async def calculate(update, context):
-    city_from = context.user_data['city_from']
-    city_to = context.user_data['city_to']
+    city_from = ' '.join(context.user_data['city_from'].split('_'))
+    city_to = ' '.join(context.user_data['city_to'].split('_'))
     places = context.user_data['places']
     weight = context.user_data['weight']
     width, long, height = context.user_data['sizes']
     ztu = context.user_data['ztu']
     info = pec_api.get_info_delivery(city_from=city_from, city_to=city_to,
                                      weight=weight, width=width, long=long, height=height,
-                                     volume=width * long * height, is_gabarit=True, need_protected_package=ztu,
+                                     volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
                                      places=places)
     print(info)
+    auto_enabled = False
+    auto_cost = 0
+    avia_enabled = False
+    avia_cost = 0
+    add_list = ['ADD', 'ADD_1', 'ADD_2', 'ADD_3', 'ADD_4']
+    if 'auto' in info.keys():
+        auto_enabled = True
+        auto_cost = int(info['auto'][2]) + int(info['take'][2]) + int(info['deliver'][2])
+        for i in add_list:
+            if i in info.keys():
+                auto_cost += int(info[i]['3'])
+    if 'avia' in info.keys():
+        avia_enabled = True
+        auto_cost = int(info['take'][2]) + int(info['avia'][2]) + int(info['deliver'][2])
+        for i in add_list:
+            if i in info.keys():
+                auto_cost += int(info[i]['3'])
+    text = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
+           f'Параметры груза:\n' \
+           f'Количество мест: {places}\n' \
+           f'Объем на место: {width * long * height} м3\n' \
+           f'Вес на место: {weight} кг\n' \
+           f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
+           f'----------------------------------------------\n' \
+           f'Транспортная компания: ПЭК:\n' \
+           f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок:"}{info["periods_days"]}\n' \
+           f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}' # TODO: незнаю какой здесь ключ
+    await context.bot.send_message(chat_id=update.effective_user.id,
+                                   text=text)
 
 
 async def stop(update, context):
