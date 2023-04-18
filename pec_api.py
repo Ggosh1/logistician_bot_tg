@@ -10,10 +10,13 @@ class NoDeliveryToThisCity(Exception):
 def get_city_code(city):
     town_list_url = 'http://www.pecom.ru/ru/calc/towns.php'
     town_list = json.loads(bytes(requests.get(town_list_url).content).decode('utf-8'))
-    #print(town_list) #
+    print(town_list) #
+    print(city)
     # TODO: тут баг с москвой как минимум, пэк почему то написали Москва Восток, возможны баги с другими городами
-    if city.lower().capitalize() in town_list.keys():
-        return list(town_list[city.lower().capitalize()].keys())[0] # TODO: пока что тупо берет первый район
+    if city.lower() == 'москва':
+        return '-446'
+    if city in town_list.keys():
+        return list(town_list[city].keys())[0] # пока что тупо берет первый район
     return False
 
 

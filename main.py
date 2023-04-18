@@ -6,7 +6,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 import pec_api
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
 )
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ async def choose_city_from(update, context):
         city_from = query.data[6:]
         context.user_data['city_from'] = city_from
         inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_москва'),
-                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт-петербург')],
+                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт__петербург')],
                            [InlineKeyboardButton('Новосибирск', callback_data='#city_новосибирск'),
                             InlineKeyboardButton('Екатеринбург', callback_data='#city_екатеринбург')],
                            [InlineKeyboardButton('Казань', callback_data='#city_казань'),
@@ -87,7 +87,7 @@ async def choose_city_from(update, context):
                            [InlineKeyboardButton('Челябинск', callback_data='#city_челябинск'),
                             InlineKeyboardButton('Воронеж', callback_data='#city_воронеж'),
                             InlineKeyboardButton('Пермь', callback_data='#city_пермь')],
-                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_ростов_на_дону'),
+                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_ростов__на__дону'),
                             InlineKeyboardButton('Омск', callback_data='#city_омск'),
                             InlineKeyboardButton('Краснодар', callback_data='#city_краснодар')],
                            [InlineKeyboardButton('Волгоград', callback_data='#city_волгоград'),
@@ -189,12 +189,34 @@ async def ztu(update, context):
         context.user_data['ztu'] = True
     elif query.data[9:] == 'no':
         context.user_data['ztu'] = False
+    reply_keyboard = [[InlineKeyboardButton('Забрать по адресу, доставить по адресу', callback_data='#deliv_dd')],
+                       [InlineKeyboardButton('Забрать из отделения, доставить в отделение', callback_data='#deliv_pp')],
+                       [InlineKeyboardButton('Забрать по адресу, доставить в отделение', callback_data='#deliv_dp')],
+                      [ InlineKeyboardButton('Забрать из отделения, доставить по адресу', callback_data='#deliv_pd')]]
+    markup = InlineKeyboardMarkup(reply_keyboard)
+    await context.bot.send_message(chat_id=update.effective_user.id,
+                                   text=f"Введите единицы измерения размеров груза (одно место)",
+                                   reply_markup=markup)
+    return 9
+
+
+async def delivery(update, context):
+    query = update.callback_query
+    home_take = True
+    home_delive = True
+    if query.data[7] == 'p':
+        home_take = False
+    if query.data[8] == 'p':
+        home_delive = False
+    context.user_data['home_take'] = home_take
+    context.user_data['home_delive'] = home_delive
     await calculate(update, context)
 
 
 async def calculate(update, context):
-    city_from = ' '.join(context.user_data['city_from'].split('_'))
-    city_to = ' '.join(context.user_data['city_to'].split('_'))
+    print(context.user_data['city_from'])
+    city_from = '-'.join(list(map(lambda x: x.capitalize(), ' '.join(context.user_data['city_from'].split('_')).split('-')))) # TODO: траблы с городами где тире
+    city_to = '-'.join(list(map(lambda x: x.capitalize(), ' '.join(context.user_data['city_to'].split('_')).split('-'))))
     places = context.user_data['places']
     weight = context.user_data['weight']
     width, long, height = context.user_data['sizes']
@@ -211,25 +233,40 @@ async def calculate(update, context):
     add_list = ['ADD', 'ADD_1', 'ADD_2', 'ADD_3', 'ADD_4']
     if 'auto' in info.keys():
         auto_enabled = True
-        auto_cost = int(info['auto'][2]) + int(info['take'][2]) + int(info['deliver'][2])
+        auto_cost = int(info['auto'][2])
+        if context.user_data['home_take']:
+            auto_cost += int(info['take'][2])
+        if context.user_data['home_delive']:
+            auto_cost += int(info['deliver'][2])
+        if 'autonegabarit' in info.keys():
+            auto_cost += int(info['autonegabarit'][2])
         for i in add_list:
             if i in info.keys():
                 auto_cost += int(info[i]['3'])
     if 'avia' in info.keys():
         avia_enabled = True
-        auto_cost = int(info['take'][2]) + int(info['avia'][2]) + int(info['deliver'][2])
+        avia_cost = int(info['avia'][2])
+        if context.user_data['home_take']:
+            avia_cost += int(info['take'][2])
+        if context.user_data['home_delive']:
+            avia_cost += int(info['deliver'][2])
         for i in add_list:
             if i in info.keys():
-                auto_cost += int(info[i]['3'])
+                avia_cost += int(info[i]['3'])
+    auto_time = 'неизвестен'
+    if 'periods_days' in info.keys():
+        auto_time = info['periods_days']
     text = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
            f'Параметры груза:\n' \
            f'Количество мест: {places}\n' \
-           f'Объем на место: {width * long * height} м3\n' \
+           f'Объем на место: {round(width * long * height, 4)} м3\n' \
            f'Вес на место: {weight} кг\n' \
            f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
+           f'Забрать {"по адресу" if update.user_data["home_take"] else "из отделения"}\n' \
+           f'Доставить {"по адресу" if update.user_data["home_delive"] else "в отделение"}' \
            f'----------------------------------------------\n' \
            f'Транспортная компания: ПЭК:\n' \
-           f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок:"}{info["periods_days"]}\n' \
+           f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
            f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}' # TODO: незнаю какой здесь ключ
     await context.bot.send_message(chat_id=update.effective_user.id,
                                    text=text)
@@ -254,7 +291,8 @@ def main():
             5: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_weight)],
             6: [CallbackQueryHandler(read_units, pattern='^' + '#units_')],
             7: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_sizes)],
-            8: [CallbackQueryHandler(ztu, pattern='^' + '#gabarit_')]
+            8: [CallbackQueryHandler(ztu, pattern='^' + '#gabarit_')],
+            9: [CallbackQueryHandler(delivery, pattern='^' + '#deliv_')]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
