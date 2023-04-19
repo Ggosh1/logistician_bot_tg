@@ -6,6 +6,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 import pec_api
 import schedule
 from sdek_api import update_token, get_token
+import geocoder_api
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
@@ -73,39 +74,48 @@ async def chosen_option(update, context):
 
 
 async def choose_city_from(update, context):
+    inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
+                        InlineKeyboardButton('Санкт-Петербург', callback_data='#city_Санкт-Петербург')],
+                       [InlineKeyboardButton('Новосибирск', callback_data='#city_Новосибирск'),
+                        InlineKeyboardButton('Екатеринбург', callback_data='#city_Екатеринбург')],
+                       [InlineKeyboardButton('Казань', callback_data='#city_Казань'),
+                        InlineKeyboardButton('Самара', callback_data='#city_Самара'),
+                        InlineKeyboardButton('Уфа', callback_data='#city_Уфа')],
+                       [InlineKeyboardButton('Нижний Новгород', callback_data='#city_Нижний_Новгород'),
+                        InlineKeyboardButton('Красноярск', callback_data='#city_Красноярск')],
+                       [InlineKeyboardButton('Челябинск', callback_data='#city_Челябинск'),
+                        InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
+                        InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
+                       [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
+                        InlineKeyboardButton('Омск', callback_data='#city_омск'),
+                        InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
+                       [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
+                        InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
+                        InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
+                       [InlineKeyboardButton('В начало', callback_data='to_start')]]
+    markup = InlineKeyboardMarkup(inline_keyboard)
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
         city_from = query.data[6:]
         context.user_data['city_from'] = city_from
-        inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
-                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_Санкт-Петербург')],
-                           [InlineKeyboardButton('Новосибирск', callback_data='#city_Новосибирск'),
-                            InlineKeyboardButton('Екатеринбург', callback_data='#city_Екатеринбург')],
-                           [InlineKeyboardButton('Казань', callback_data='#city_Казань'),
-                            InlineKeyboardButton('Самара', callback_data='#city_Самара'),
-                            InlineKeyboardButton('Уфа', callback_data='#city_Уфа')],
-                           [InlineKeyboardButton('Нижний Новгород', callback_data='#city_Нижний_Новгород'),
-                            InlineKeyboardButton('Красноярск', callback_data='#city_Красноярск')],
-                           [InlineKeyboardButton('Челябинск', callback_data='#city_Челябинск'),
-                            InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
-                            InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
-                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
-                            InlineKeyboardButton('Омск', callback_data='#city_омск'),
-                            InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
-                           [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
-                            InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
-                            InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
-                           [InlineKeyboardButton('В начало', callback_data='to_start')]]
-        markup = InlineKeyboardMarkup(inline_keyboard)
         await context.bot.send_message(chat_id=update.effective_user.id,
-                                      text=f"Напишите город получателя или выберите один из самых популярных вариантов",
-                                      reply_markup=markup
-                                      )
+                                       text=f"Напишите город получателя или выберите один из самых популярных вариантов",
+                                       reply_markup=markup
+                                       )
         return 3
     else:  # юзер ввел текст сам
         msg = update.message.text
-        city_from = msg.lower()
-        # TODO: через геокодер предлагаем варианты
+        try:
+            city_from = geocoder_api.get_city_name(msg.lower())
+            context.user_data['city_from'] = city_from
+            await context.bot.send_message(chat_id=update.effective_user.id,
+                                           text=f"Напишите город получателя или выберите один из самых популярных вариантов",
+                                           reply_markup=markup
+                                           )
+            return 3
+        except geocoder_api.CityNotFoundError:
+            pass
+            # TODO: некорректное значение
 
 
 async def choose_city_to(update, context):
@@ -114,13 +124,21 @@ async def choose_city_to(update, context):
         city_to = query.data[6:]
         context.user_data['city_to'] = city_to
         await context.bot.send_message(chat_id=update.effective_user.id,
-                                      text=f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
-                                      )
+                                       text=f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
+                                       )
         return 4
     else:  # юзер ввел текст сам
         msg = update.message.text
-        city_from = msg.lower()
-        # TODO: через геокодер предлагаем варианты
+        try:
+            city_to = geocoder_api.get_city_name(msg.lower())
+            context.user_data['city_to'] = city_to
+            await context.bot.send_message(chat_id=update.effective_user.id,
+                                           text=f"Введите количество мест (неделимых грузовых объектов (коробок, связок, упаковок))"
+                                           )
+            return 4
+        except geocoder_api.CityNotFoundError:
+            pass
+            # TODO: некорректное значение
 
 
 async def read_places(update, context):
@@ -148,8 +166,8 @@ async def read_weight(update, context):
                            InlineKeyboardButton('метр', callback_data='#units_m')]]
         markup = InlineKeyboardMarkup(reply_keyboard)
         await context.bot.send_message(chat_id=update.effective_user.id,
-                                      text=f"Введите единицы измерения размеров груза (одно место)",
-                                      reply_markup=markup)
+                                       text=f"Введите единицы измерения размеров груза (одно место)",
+                                       reply_markup=markup)
         return 6
 
     except ValueError:
@@ -166,7 +184,7 @@ async def read_units(update, context):
     elif query.data[7:] == 'm':
         context.user_data['volume_coef'] = 1
     await context.bot.send_message(chat_id=update.effective_user.id,
-        text=f"Введите ширину, длину, высоту груза (на одно место) через пробел\n\nПример:\n20 30 50")
+                                   text=f"Введите ширину, длину, высоту груза (на одно место) через пробел\n\nПример:\n20 30 50")
     return 7
 
 
@@ -192,9 +210,9 @@ async def ztu(update, context):
     elif query.data[9:] == 'no':
         context.user_data['ztu'] = False
     reply_keyboard = [[InlineKeyboardButton('Забрать по адресу, доставить по адресу', callback_data='#deliv_dd')],
-                       [InlineKeyboardButton('Забрать из отделения, доставить в отделение', callback_data='#deliv_pp')],
-                       [InlineKeyboardButton('Забрать по адресу, доставить в отделение', callback_data='#deliv_dp')],
-                      [ InlineKeyboardButton('Забрать из отделения, доставить по адресу', callback_data='#deliv_pd')]]
+                      [InlineKeyboardButton('Забрать из отделения, доставить в отделение', callback_data='#deliv_pp')],
+                      [InlineKeyboardButton('Забрать по адресу, доставить в отделение', callback_data='#deliv_dp')],
+                      [InlineKeyboardButton('Забрать из отделения, доставить по адресу', callback_data='#deliv_pd')]]
     markup = InlineKeyboardMarkup(reply_keyboard)
     await context.bot.send_message(chat_id=update.effective_user.id,
                                    text=f"Введите единицы измерения размеров груза (одно место)",
@@ -230,7 +248,7 @@ async def calculate(update, context):
                                      weight=weight, width=width, long=long, height=height,
                                      volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
                                      places=places)
-    #print(info)
+    # print(info)
     auto_enabled = False
     auto_cost = 0
     avia_enabled = False
@@ -272,7 +290,7 @@ async def calculate(update, context):
            f'----------------------------------------------\n' \
            f'Транспортная компания: ПЭК:\n' \
            f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
-           f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}' # TODO: незнаю какой здесь ключ
+           f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
     await context.bot.send_message(chat_id=update.effective_user.id,
                                    text=text)
 
