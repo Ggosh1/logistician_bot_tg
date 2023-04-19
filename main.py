@@ -114,8 +114,7 @@ async def choose_city_from(update, context):
                                            )
             return 3
         except geocoder_api.CityNotFoundError:
-            pass
-            # TODO: некорректное значение
+            await not_understand(update, context)
 
 
 async def choose_city_to(update, context):
@@ -137,8 +136,7 @@ async def choose_city_to(update, context):
                                            )
             return 4
         except geocoder_api.CityNotFoundError:
-            pass
-            # TODO: некорректное значение
+            await not_understand(update, context)
 
 
 async def read_places(update, context):
@@ -152,14 +150,13 @@ async def read_places(update, context):
         return 5
 
     except ValueError:
-        # TODO: некорректное значение
-        pass
+        await not_understand(update, context)
 
 
 async def read_weight(update, context):
     msg = update.message.text
     try:
-        weight = int(msg)
+        weight = float(msg)
         context.user_data['weight'] = weight
         reply_keyboard = [[InlineKeyboardButton('мм', callback_data='#units_mm'),
                            InlineKeyboardButton('см', callback_data='#units_sm'),
@@ -171,8 +168,7 @@ async def read_weight(update, context):
         return 6
 
     except ValueError:
-        # TODO: некорректное значение
-        pass
+        await not_understand(update, context)
 
 
 async def read_units(update, context):
@@ -191,7 +187,7 @@ async def read_units(update, context):
 async def read_sizes(update, context):
     try:
         msg = update.message.text
-        width, long, height = map(lambda x: int(x) * context.user_data['volume_coef'], msg.split(' '))
+        width, long, height = map(lambda x: float(x) * context.user_data['volume_coef'], msg.split(' '))
         context.user_data['sizes'] = [width, height, long]
         reply_keyboard = [[InlineKeyboardButton('да', callback_data='#gabarit_yes'),
                            InlineKeyboardButton('нет', callback_data='#gabarit_no')]]
@@ -199,8 +195,7 @@ async def read_sizes(update, context):
         await update.message.reply_html(f"Вашему грузу нужна защитная транспортная упаковка?", reply_markup=markup)
         return 8
     except Exception:
-        # TODO: некорректное значение
-        pass
+        await not_understand(update, context)
 
 
 async def ztu(update, context):
@@ -244,60 +239,70 @@ async def calculate(update, context):
     weight = context.user_data['weight']
     width, long, height = context.user_data['sizes']
     ztu = context.user_data['ztu']
-    info = pec_api.get_info_delivery(city_from=city_from, city_to=city_to,
-                                     weight=weight, width=width, long=long, height=height,
-                                     volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
-                                     places=places)
-    # print(info)
-    auto_enabled = False
-    auto_cost = 0
-    avia_enabled = False
-    avia_cost = 0
-    add_list = ['ADD', 'ADD_1', 'ADD_2', 'ADD_3', 'ADD_4']
-    if 'auto' in info.keys():
-        auto_enabled = True
-        auto_cost = int(info['auto'][2])
-        if context.user_data['home_take']:
-            auto_cost += int(info['take'][2])
-        if context.user_data['home_delive']:
-            auto_cost += int(info['deliver'][2])
-        if 'autonegabarit' in info.keys():
-            auto_cost += int(info['autonegabarit'][2])
-        for i in add_list:
-            if i in info.keys():
-                auto_cost += int(info[i]['3'])
-    if 'avia' in info.keys():
-        avia_enabled = True
-        avia_cost = int(info['avia'][2])
-        if context.user_data['home_take']:
-            avia_cost += int(info['take'][2])
-        if context.user_data['home_delive']:
-            avia_cost += int(info['deliver'][2])
-        for i in add_list:
-            if i in info.keys():
-                avia_cost += int(info[i]['3'])
-    auto_time = 'неизвестен'
-    if 'periods_days' in info.keys():
-        auto_time = info['periods_days']
-    text = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
-           f'Параметры груза:\n' \
-           f'Количество мест: {places}\n' \
-           f'Объем на место: {round(width * long * height, 4)} м3\n' \
-           f'Вес на место: {weight} кг\n' \
-           f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
-           f'Забрать {"по адресу" if context.user_data["home_take"] else "из отделения"}\n' \
-           f'Доставить {"по адресу" if context.user_data["home_delive"] else "в отделение"}\n' \
-           f'----------------------------------------------\n' \
-           f'Транспортная компания: ПЭК:\n' \
-           f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
-           f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
-    await context.bot.send_message(chat_id=update.effective_user.id,
-                                   text=text)
+    try:
+        info = pec_api.get_info_delivery(city_from=city_from, city_to=city_to,
+                                         weight=weight, width=width, long=long, height=height,
+                                         volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
+                                         places=places)
+        # print(info)
+        auto_enabled = False
+        auto_cost = 0
+        avia_enabled = False
+        avia_cost = 0
+        add_list = ['ADD', 'ADD_1', 'ADD_2', 'ADD_3', 'ADD_4']
+        if 'auto' in info.keys():
+            auto_enabled = True
+            auto_cost = int(info['auto'][2])
+            if context.user_data['home_take']:
+                auto_cost += int(info['take'][2])
+            if context.user_data['home_delive']:
+                auto_cost += int(info['deliver'][2])
+            if 'autonegabarit' in info.keys():
+                auto_cost += int(info['autonegabarit'][2])
+            for i in add_list:
+                if i in info.keys():
+                    auto_cost += int(info[i]['3'])
+        if 'avia' in info.keys():
+            avia_enabled = True
+            avia_cost = int(info['avia'][2])
+            if context.user_data['home_take']:
+                avia_cost += int(info['take'][2])
+            if context.user_data['home_delive']:
+                avia_cost += int(info['deliver'][2])
+            for i in add_list:
+                if i in info.keys():
+                    avia_cost += int(info[i]['3'])
+        auto_time = 'неизвестен'
+        if 'periods_days' in info.keys():
+            auto_time = info['periods_days']
+        text = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
+               f'Параметры груза:\n' \
+               f'Количество мест: {places}\n' \
+               f'Объем на место: {round(width * long * height, 5)} м3\n' \
+               f'Вес на место: {weight} кг\n' \
+               f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
+               f'Забрать {"по адресу" if context.user_data["home_take"] else "из отделения"}\n' \
+               f'Доставить {"по адресу" if context.user_data["home_delive"] else "в отделение"}\n' \
+               f'----------------------------------------------\n' \
+               f'Транспортная компания: ПЭК:\n' \
+               f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
+               f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
+        await context.bot.send_message(chat_id=update.effective_user.id,
+                                       text=text)
+    except pec_api.NoDeliveryToThisCity as err:
+        await context.bot.send_message(chat_id=update.effective_user.id,
+                                       text=f'{str(err)}')
 
 
 async def stop(update, context):
     await update.message.reply_text("Всего доброго!")
     return ConversationHandler.END
+
+
+async def not_understand(update, context):
+    await context.bot.send_message(chat_id=update.effective_user.id,
+                                   text='Извините, я не понял вашего ответа..Попробуйте еще раз\n'
+                                        'Для перезапуска напишите /stop, а после /start')
 
 
 def main():
