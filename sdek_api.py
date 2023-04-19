@@ -7,7 +7,8 @@ url = 'https://api.edu.cdek.ru/v2/calculator/tariff'
 
 def update_token():
     with open('config.txt', 'r') as c:
-        access_token = c.readline().strip('\n')
+        sdek_access_token = c.readline().strip('\n')
+        global sdek_acess_token
 
 
 def get_token():
@@ -22,39 +23,39 @@ def get_token():
     return
 
 
-schedule.every(50).minutes.do(get_token)
+#schedule.every(50).minutes.do(get_token)
 
 
-data = json.dumps({
-    "type": "2",
-    "currency": "1",
-    "tariff_code": "11",
-    "from_location": {
-        "code": 270
-    },
-    "to_location": {
-        "code": 44
-    },
-    "services": [
-        {
-            "code": "CARTON_BOX_XS",
-            "parameter": "2"
-        }
-    ],
-    "packages": [
-        {
-            "height": 10,
-            "length": 10,
-            "weight": 4000,
-            "width": 10
-        }
-    ]
-})
+#data = json.dumps({
+#    "type": "2",
+#    "currency": "1",
+#    "tariff_code": "11",
+#    "from_location": {
+#        "code": 270
+#    },
+#    "to_location": {
+#        "code": 44
+#    },
+#    "services": [
+#        {
+#            "code": "CARTON_BOX_XS",
+#            "parameter": "2"
+#        }
+#    ],
+#    "packages": [
+#        {
+#            "height": 10,
+#            "length": 10,
+#            "weight": 4000,
+#            "width": 10
+#        }
+#    ]
+#})
 
 
-header = {"Authorization": f"Bearer {access_token}", 'Content-Type': 'application/json'}
-out = requests.post(url, data=data, headers=header)
-print(out.content)
-
-while True:
-    schedule.run_pending()
+#header = {"Authorization": f"Bearer {access_token}", 'Content-Type': 'application/json'}
+#out = requests.post(url, data=data, headers=header)
+#print(out.content)
+#
+#while True:
+#    schedule.run_pending()

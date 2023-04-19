@@ -10,8 +10,8 @@ class NoDeliveryToThisCity(Exception):
 def get_city_code(city):
     town_list_url = 'http://www.pecom.ru/ru/calc/towns.php'
     town_list = json.loads(bytes(requests.get(town_list_url).content).decode('utf-8'))
-    print(town_list) #
-    print(city)
+    #print(town_list) #
+    #print(city)
     # TODO: тут баг с москвой как минимум, пэк почему то написали Москва Восток, возможны баги с другими городами
     if city.lower() == 'москва':
         return '-446'

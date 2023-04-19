@@ -4,6 +4,8 @@ from config import BOT_TOKEN
 from telegram.ext import CommandHandler
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import pec_api
+import schedule
+from sdek_api import update_token, get_token
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
@@ -37,24 +39,24 @@ async def chosen_option(update, context):
         #                  ['Челябинск', 'Воронеж', 'Пермь'],
         #                  ['Ростов-на-Дону', 'Омск', 'Краснодар'],
         #                  ['Волгоград', 'Саратов', 'Тюмень']]
-        inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_москва'),
-                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт-петербург')],
-                           [InlineKeyboardButton('Новосибирск', callback_data='#city_новосибирск'),
-                            InlineKeyboardButton('Екатеринбург', callback_data='#city_екатеринбург')],
-                           [InlineKeyboardButton('Казань', callback_data='#city_казань'),
-                            InlineKeyboardButton('Самара', callback_data='#city_самара'),
-                            InlineKeyboardButton('Уфа', callback_data='#city_уфа')],
-                           [InlineKeyboardButton('Нижний Новгород', callback_data='#city_нижний_новгород'),
-                            InlineKeyboardButton('Красноярск', callback_data='#city_красноярск')],
-                           [InlineKeyboardButton('Челябинск', callback_data='#city_челябинск'),
-                            InlineKeyboardButton('Воронеж', callback_data='#city_воронеж'),
-                            InlineKeyboardButton('Пермь', callback_data='#city_пермь')],
-                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_ростов_на_дону'),
+        inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
+                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_Санкт-Петербург')],
+                           [InlineKeyboardButton('Новосибирск', callback_data='#city_Новосибирск'),
+                            InlineKeyboardButton('Екатеринбург', callback_data='#city_Екатеринбург')],
+                           [InlineKeyboardButton('Казань', callback_data='#city_Казань'),
+                            InlineKeyboardButton('Самара', callback_data='#city_Самара'),
+                            InlineKeyboardButton('Уфа', callback_data='#city_Уфа')],
+                           [InlineKeyboardButton('Нижний Новгород', callback_data='#city_Нижний_Новгород'),
+                            InlineKeyboardButton('Красноярск', callback_data='#city_Красноярск')],
+                           [InlineKeyboardButton('Челябинск', callback_data='#city_Челябинск'),
+                            InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
+                            InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
+                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
                             InlineKeyboardButton('Омск', callback_data='#city_омск'),
-                            InlineKeyboardButton('Краснодар', callback_data='#city_краснодар')],
-                           [InlineKeyboardButton('Волгоград', callback_data='#city_волгоград'),
-                            InlineKeyboardButton('Саратов', callback_data='#city_саратов'),
-                            InlineKeyboardButton('Тюмень', callback_data='#city_тюмень')],
+                            InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
+                           [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
+                            InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
+                            InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
                            [InlineKeyboardButton('В начало', callback_data='to_start')]]
         markup = InlineKeyboardMarkup(inline_keyboard)
         await update.message.reply_html(
@@ -75,24 +77,24 @@ async def choose_city_from(update, context):
     if query:  # юзер нажал на инлайн клаву
         city_from = query.data[6:]
         context.user_data['city_from'] = city_from
-        inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_москва'),
-                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_санкт__петербург')],
-                           [InlineKeyboardButton('Новосибирск', callback_data='#city_новосибирск'),
-                            InlineKeyboardButton('Екатеринбург', callback_data='#city_екатеринбург')],
-                           [InlineKeyboardButton('Казань', callback_data='#city_казань'),
-                            InlineKeyboardButton('Самара', callback_data='#city_самара'),
-                            InlineKeyboardButton('Уфа', callback_data='#city_уфа')],
-                           [InlineKeyboardButton('Нижний Новгород', callback_data='#city_нижний_новгород'),
-                            InlineKeyboardButton('Красноярск', callback_data='#city_красноярск')],
-                           [InlineKeyboardButton('Челябинск', callback_data='#city_челябинск'),
-                            InlineKeyboardButton('Воронеж', callback_data='#city_воронеж'),
-                            InlineKeyboardButton('Пермь', callback_data='#city_пермь')],
-                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_ростов__на__дону'),
+        inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
+                            InlineKeyboardButton('Санкт-Петербург', callback_data='#city_Санкт-Петербург')],
+                           [InlineKeyboardButton('Новосибирск', callback_data='#city_Новосибирск'),
+                            InlineKeyboardButton('Екатеринбург', callback_data='#city_Екатеринбург')],
+                           [InlineKeyboardButton('Казань', callback_data='#city_Казань'),
+                            InlineKeyboardButton('Самара', callback_data='#city_Самара'),
+                            InlineKeyboardButton('Уфа', callback_data='#city_Уфа')],
+                           [InlineKeyboardButton('Нижний Новгород', callback_data='#city_Нижний_Новгород'),
+                            InlineKeyboardButton('Красноярск', callback_data='#city_Красноярск')],
+                           [InlineKeyboardButton('Челябинск', callback_data='#city_Челябинск'),
+                            InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
+                            InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
+                           [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
                             InlineKeyboardButton('Омск', callback_data='#city_омск'),
-                            InlineKeyboardButton('Краснодар', callback_data='#city_краснодар')],
-                           [InlineKeyboardButton('Волгоград', callback_data='#city_волгоград'),
-                            InlineKeyboardButton('Саратов', callback_data='#city_саратов'),
-                            InlineKeyboardButton('Тюмень', callback_data='#city_тюмень')],
+                            InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
+                           [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
+                            InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
+                            InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
                            [InlineKeyboardButton('В начало', callback_data='to_start')]]
         markup = InlineKeyboardMarkup(inline_keyboard)
         await context.bot.send_message(chat_id=update.effective_user.id,
@@ -214,9 +216,12 @@ async def delivery(update, context):
 
 
 async def calculate(update, context):
-    print(context.user_data['city_from'])
-    city_from = '-'.join(list(map(lambda x: x.capitalize(), ' '.join(context.user_data['city_from'].split('_')).split('-')))) # TODO: траблы с городами где тире
-    city_to = '-'.join(list(map(lambda x: x.capitalize(), ' '.join(context.user_data['city_to'].split('_')).split('-'))))
+    print(context.user_data['city_from'], '###from')
+    print(context.user_data['city_to'], '###to')
+    city_from = ' '.join(context.user_data['city_from'].split('_'))
+    city_to = ' '.join(context.user_data['city_to'].split('_'))
+    print(city_from)
+    print(city_to)
     places = context.user_data['places']
     weight = context.user_data['weight']
     width, long, height = context.user_data['sizes']
@@ -225,7 +230,7 @@ async def calculate(update, context):
                                      weight=weight, width=width, long=long, height=height,
                                      volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
                                      places=places)
-    print(info)
+    #print(info)
     auto_enabled = False
     auto_cost = 0
     avia_enabled = False
@@ -262,8 +267,8 @@ async def calculate(update, context):
            f'Объем на место: {round(width * long * height, 4)} м3\n' \
            f'Вес на место: {weight} кг\n' \
            f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
-           f'Забрать {"по адресу" if update.user_data["home_take"] else "из отделения"}\n' \
-           f'Доставить {"по адресу" if update.user_data["home_delive"] else "в отделение"}' \
+           f'Забрать {"по адресу" if context.user_data["home_take"] else "из отделения"}\n' \
+           f'Доставить {"по адресу" if context.user_data["home_delive"] else "в отделение"}\n' \
            f'----------------------------------------------\n' \
            f'Транспортная компания: ПЭК:\n' \
            f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
@@ -299,6 +304,11 @@ def main():
 
     application.add_handler(conv_handler)
     application.run_polling()
+    sdek_acess_token = ''
+    schedule.every(49).minutes.do(get_token)
+    schedule.every(49).minutes.do(update_token)
+    while True:
+        schedule.run_pending()
 
 
 if __name__ == '__main__':
