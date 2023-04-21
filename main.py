@@ -1,12 +1,15 @@
 import logging
 from telegram.ext import Application, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
-from config import BOT_TOKEN
+
+import boxberry_api
+from config import BOT_TOKEN, boxberry_acess_token
 from telegram.ext import CommandHandler
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import pec_api
 import schedule
 from sdek_api import update_token, get_token
 import geocoder_api
+
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
@@ -53,7 +56,7 @@ async def chosen_option(update, context):
                             InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
                             InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
                            [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
-                            InlineKeyboardButton('Омск', callback_data='#city_омск'),
+                            InlineKeyboardButton('Омск', callback_data='#city_Омск'),
                             InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
                            [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
                             InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
@@ -87,7 +90,7 @@ async def choose_city_from(update, context):
                         InlineKeyboardButton('Воронеж', callback_data='#city_Воронеж'),
                         InlineKeyboardButton('Пермь', callback_data='#city_Пермь')],
                        [InlineKeyboardButton('Ростов-на-Дону', callback_data='#city_Ростов-на-Дону'),
-                        InlineKeyboardButton('Омск', callback_data='#city_омск'),
+                        InlineKeyboardButton('Омск', callback_data='#city_Омск'),
                         InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
                        [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
                         InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
@@ -229,16 +232,25 @@ async def delivery(update, context):
 
 
 async def calculate(update, context):
-    print(context.user_data['city_from'], '###from')
-    print(context.user_data['city_to'], '###to')
     city_from = ' '.join(context.user_data['city_from'].split('_'))
     city_to = ' '.join(context.user_data['city_to'].split('_'))
-    print(city_from)
-    print(city_to)
     places = context.user_data['places']
     weight = context.user_data['weight']
     width, long, height = context.user_data['sizes']
     ztu = context.user_data['ztu']
+    home_take = context.user_data["home_take"]
+    home_delive = context.user_data["home_delive"]
+    text1 = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
+            f'Параметры груза:\n' \
+            f'Количество мест: {places}\n' \
+            f'Объем на место: {round(width * long * height, 5)} м3\n' \
+            f'Вес на место: {weight} кг\n' \
+            f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
+            f'Забрать {"по адресу" if home_take else "из отделения"}\n' \
+            f'Доставить {"по адресу" if home_delive else "в отделение"}\n' \
+            f'----------------------------------------------\n'
+    await context.bot.send_message(chat_id=update.effective_user.id,
+                                   text=text1)
     try:
         info = pec_api.get_info_delivery(city_from=city_from, city_to=city_to,
                                          weight=weight, width=width, long=long, height=height,
@@ -253,9 +265,9 @@ async def calculate(update, context):
         if 'auto' in info.keys():
             auto_enabled = True
             auto_cost = int(info['auto'][2])
-            if context.user_data['home_take']:
+            if home_take:
                 auto_cost += int(info['take'][2])
-            if context.user_data['home_delive']:
+            if home_delive:
                 auto_cost += int(info['deliver'][2])
             if 'autonegabarit' in info.keys():
                 auto_cost += int(info['autonegabarit'][2])
@@ -265,9 +277,9 @@ async def calculate(update, context):
         if 'avia' in info.keys():
             avia_enabled = True
             avia_cost = int(info['avia'][2])
-            if context.user_data['home_take']:
+            if home_take:
                 avia_cost += int(info['take'][2])
-            if context.user_data['home_delive']:
+            if home_delive:
                 avia_cost += int(info['deliver'][2])
             for i in add_list:
                 if i in info.keys():
@@ -275,23 +287,37 @@ async def calculate(update, context):
         auto_time = 'неизвестен'
         if 'periods_days' in info.keys():
             auto_time = info['periods_days']
-        text = f'Рассчет стоимости доставки {city_from} - {city_to}\n' \
-               f'Параметры груза:\n' \
-               f'Количество мест: {places}\n' \
-               f'Объем на место: {round(width * long * height, 5)} м3\n' \
-               f'Вес на место: {weight} кг\n' \
-               f'Защитная транспортная упаковка: {"включена" if ztu else "не включена"}\n' \
-               f'Забрать {"по адресу" if context.user_data["home_take"] else "из отделения"}\n' \
-               f'Доставить {"по адресу" if context.user_data["home_delive"] else "в отделение"}\n' \
-               f'----------------------------------------------\n' \
-               f'Транспортная компания: ПЭК:\n' \
-               f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
-               f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
+        text2 = f'Транспортная компания: ПЭК:\n' \
+        f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
+        f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
         await context.bot.send_message(chat_id=update.effective_user.id,
-                                       text=text)
+                                       text=text2)
     except pec_api.NoDeliveryToThisCity as err:
         await context.bot.send_message(chat_id=update.effective_user.id,
                                        text=f'{str(err)}')
+    try:
+        if home_delive:
+            is_target = False
+        else:
+            is_target = True
+        info = boxberry_api.get_info_delivery(token=boxberry_acess_token, weight=weight * 1000, city_from=city_from,
+                                              city_to=city_to, height=height * 0.01, width=width * 0.01, depth=long * 0.01, is_target=True)
+        text1 = ''
+        if home_take:
+            text1 = 'Компания Boxberry осуществляет забор груза только из ПВЗ (пункта выдачи заказа)'
+        if ztu:
+            text1 += '\n' + '!В стоимость не включена цена защитной транспортной упаковки'
+        text2 = f'\nТранспортная компания Boxberry:' \
+                f'\n!Данная стоимость актуальная для одного товарного места\n' \
+                f'{text1}\n'\
+                f'Автоперевозка: {info["price"]}р\n' \
+                f'Срок доставки в днях: {info["delivery_period"]}'
+        await context.bot.send_message(chat_id=update.effective_user.id, text=text2)
+    except Exception as ex:
+        print(ex)
+
+
+
 
 
 async def stop(update, context):
