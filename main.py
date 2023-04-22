@@ -1,14 +1,18 @@
 import logging
 from telegram.ext import Application, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
-
 import boxberry_api
-from config import BOT_TOKEN, boxberry_acess_token
+from config import BOT_TOKEN, boxberry_acess_token, deallines_acess_token, deallines_login, deallines_password
 from telegram.ext import CommandHandler
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import pec_api
 import schedule
 from sdek_api import update_token, get_token
 import geocoder_api
+import deallines_api
+from data import db_session
+from data.users import User
+
+
 
 
 logging.basicConfig(
@@ -18,15 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 async def start(update, context):
+    context.user_data.clear()
     user = update.effective_user
-    reply_keyboard = [['Сравнить варианты доставки', 'чето'],
-                      ['чето', 'чето']]
+    user_db = db_sess.query(User).filter(User.tg_id == user.id).first()
+    if user_db is None:
+        push_data = User()
+        push_data.tg_id = user.id
+        push_data.feedback = None
+        db_sess.add(push_data)
+        db_sess.commit()
+    reply_keyboard = [['Сравнить варианты доставки', 'Оценить работу бота']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-    # await update.message.reply_html(
-    #    f"Привет {user.mention_html()}! Я бот-логист.\n\nЯ помогу узнать, какой курьерской службой/транспортной компанией"
-    #    f"будет выгодно отправить посылку/груз в твоем случае.",
-    #    reply_markup=markup
-    # )
     await update.message.reply_html(
         f"Привет {user.mention_html()}! Я бот-логист.\n\nЯ помогу узнать, какой курьерской службой/транспортной компанией"
         f"будет выгодно отправить посылку/груз в твоем случае.", reply_markup=markup)
@@ -34,15 +40,9 @@ async def start(update, context):
 
 
 async def chosen_option(update, context):
+    print('кефтеме')
     msg = update.message.text
     if msg.lower() == 'сравнить варианты доставки':
-        # reply_keyboard = [['Москва', 'Санкт-Петербург'],
-        #                  ['Новосибирск', 'Екатеринбург'],
-        #                  ['Казань', 'Самара', 'Уфа'],
-        #                  ['Нижний Новгород', 'Красноярск'],
-        #                  ['Челябинск', 'Воронеж', 'Пермь'],
-        #                  ['Ростов-на-Дону', 'Омск', 'Краснодар'],
-        #                  ['Волгоград', 'Саратов', 'Тюмень']]
         inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
                             InlineKeyboardButton('Санкт-Петербург', callback_data='#city_Санкт-Петербург')],
                            [InlineKeyboardButton('Новосибирск', callback_data='#city_Новосибирск'),
@@ -60,14 +60,28 @@ async def chosen_option(update, context):
                             InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
                            [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
                             InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
-                            InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
-                           [InlineKeyboardButton('В начало', callback_data='to_start')]]
+                            InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')]]
         markup = InlineKeyboardMarkup(inline_keyboard)
         await update.message.reply_html(
             f"Напишите город отправителя или выберите один из самых популярных вариантов",
             reply_markup=markup
         )
         return 2
+    elif msg.lower() == 'оценить работу бота':
+        users = db_sess.query(User).all()
+        rate_sum = 0
+        rated_users = 0
+        for el in users:
+            if el.feedback is not None:
+                rate_sum += el.feedback
+                rated_users += 1
+        if rated_users == 0:
+            await update.message.reply_html(f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
+        else:
+            await update.message.reply_html(f'Нашим ботом уже воспользовалось {len(users)} человек!\n'
+                                        f'Средняя оценка наших пользователей: {round(rate_sum / rated_users, 2)}\n'
+                                        f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
+        return 10
     else:
         reply_keyboard = [['Сравнить варианты доставки', 'чето'],
                           ['чето', 'чето']]
@@ -94,8 +108,7 @@ async def choose_city_from(update, context):
                         InlineKeyboardButton('Краснодар', callback_data='#city_Краснодар')],
                        [InlineKeyboardButton('Волгоград', callback_data='#city_Волгоград'),
                         InlineKeyboardButton('Саратов', callback_data='#city_Саратов'),
-                        InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')],
-                       [InlineKeyboardButton('В начало', callback_data='to_start')]]
+                        InlineKeyboardButton('Тюмень', callback_data='#city_Тюмень')]]
     markup = InlineKeyboardMarkup(inline_keyboard)
     query = update.callback_query
     if query:  # юзер нажал на инлайн клаву
@@ -304,24 +317,46 @@ async def calculate(update, context):
                                               city_to=city_to, height=height * 0.01, width=width * 0.01, depth=long * 0.01, is_target=True)
         text1 = ''
         if home_take:
-            text1 = 'Компания Boxberry осуществляет забор груза только из ПВЗ (пункта выдачи заказа)'
+            text1 = '\nКомпания Boxberry осуществляет забор груза только из ПВЗ (пункта выдачи заказа)'
         if ztu:
             text1 += '\n' + '!В стоимость не включена цена защитной транспортной упаковки'
         text2 = f'\nТранспортная компания Boxberry:' \
-                f'\n!Данная стоимость актуальная для одного товарного места\n' \
-                f'{text1}\n'\
-                f'Автоперевозка: {info["price"]}р\n' \
+                f'\n!Данная стоимость актуальная для одного товарного места' \
+                f'{text1}'\
+                f'\nАвтоперевозка: {info["price"]}р\n' \
                 f'Срок доставки в днях: {info["delivery_period"]}'
         await context.bot.send_message(chat_id=update.effective_user.id, text=text2)
+        return ConversationHandler.END
     except Exception as ex:
         print(ex)
+        await not_understand(update, context)
 
 
+async def feedback(update, context):
+    try:
+        msg = int(update.message.text)
+        if msg >= 0 and msg <= 10:
+            user = db_sess.query(User).filter(User.tg_id == update.effective_user.id).first()
+            user.feedback = msg
+            db_sess.commit()
+            reply_keyboard = [['Сравнить варианты доставки', 'Оценить работу бота']]
+            markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+            await update.message.reply_text("Спасибо за обратную связь!", reply_markup=markup)
+            return 1
+        else:
+            await update.message.reply_text("Я умею считать только от 0 до 10")
+    except Exception:
+        await not_understand(update, context)
 
+
+async def help(update, context):
+    await update.message.reply_text("Чтобы начать диалог, напиши /start\n"
+                                    "Если что-то пошло не так, пиши /stop и /start")
 
 
 async def stop(update, context):
     await update.message.reply_text("Всего доброго!")
+    context.user_data.clear()
     return ConversationHandler.END
 
 
@@ -332,6 +367,10 @@ async def not_understand(update, context):
 
 
 def main():
+    global db_session
+    global db_sess
+    db_session.global_init("db/users.db")
+    db_sess = db_session.create_session()
     application = Application.builder().token(BOT_TOKEN).build()
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -346,12 +385,14 @@ def main():
             6: [CallbackQueryHandler(read_units, pattern='^' + '#units_')],
             7: [MessageHandler(filters.TEXT & ~filters.COMMAND, read_sizes)],
             8: [CallbackQueryHandler(ztu, pattern='^' + '#gabarit_')],
-            9: [CallbackQueryHandler(delivery, pattern='^' + '#deliv_')]
+            9: [CallbackQueryHandler(delivery, pattern='^' + '#deliv_')],
+            10: [MessageHandler(filters.TEXT & ~filters.COMMAND, feedback)]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
 
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("help", help))
     application.run_polling()
     sdek_acess_token = ''
     schedule.every(49).minutes.do(get_token)
@@ -361,4 +402,6 @@ def main():
 
 
 if __name__ == '__main__':
+    session_id = deallines_api.authorization(deallines_acess_token, deallines_login, deallines_password)
+    print(session_id, '###')
     main()
