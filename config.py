@@ -1,0 +1,2 @@
+BOT_TOKEN = '5898997977:AAGfedI9CHUkDv1mQdb0GoOP24cbgDU_l4g'
+boxberry_acess_token = 'd6f33e419c16131e5325cbd84d5d6000'
