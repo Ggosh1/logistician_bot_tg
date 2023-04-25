@@ -29,13 +29,9 @@ def get_city_code(city):
     return SDEK_CODES[city]
 
 
-def parse_packages(height, width, length, weight, amount):
-    return [{"height": height, "length": length, "weight": weight, "width": width} for _ in range(amount)]
-
-
-def get_info_delivery(from_location, to_location, *args):
+def get_info_delivery(from_location, to_location, height, width, length, weight, amount):
     calculator_url = 'https://api.edu.cdek.ru/v2/calculator/tarifflist'
-    packages = parse_packages(*args)
+    packages = [{"height": height, "length": length, "weight": weight, "width": width} for _ in range(amount)]
     try:
         code_from_location = get_city_code(from_location)
         code_to_location = get_city_code(to_location)
