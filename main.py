@@ -1,16 +1,17 @@
 import logging
-
 import schedule
 from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.ext import CommandHandler
-
+import sdek_api
 import boxberry_api
 import geocoder_api
 import pec_api
 from config import BOT_TOKEN, boxberry_acess_token
 from data.users import User
-from sdek_api import update_token, get_token, get_info_delivery
+from sdek_api import update_token, get_token
+from data import db_session
+
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
@@ -37,7 +38,6 @@ async def start(update, context):
 
 
 async def chosen_option(update, context):
-    print('кефтеме')
     msg = update.message.text
     if msg.lower() == 'сравнить варианты доставки':
         inline_keyboard = [[InlineKeyboardButton('Москва', callback_data='#city_Москва'),
@@ -266,7 +266,6 @@ async def calculate(update, context):
                                          weight=weight, width=width, long=long, height=height,
                                          volume=width * long * height, is_negabarit=0, need_protected_package=ztu,
                                          places=places)
-        # print(info)
         auto_enabled = False
         auto_cost = 0
         avia_enabled = False
@@ -329,9 +328,25 @@ async def calculate(update, context):
         print(ex)
         await not_understand(update, context)
     try:
-        sdek_data = get_info_delivery(city_from, city_to, height=height, width=width, length=long,
-                                  amount=places, weight=weight)
-        
+        sdek_data = sdek_api.get_info_delivery(city_from, city_to, height=int(height * 100), width=int(width * 100), length=int(long * 100),
+                                      amount=places, weight=int(weight * 1000))
+        sdek_text = 'Транспортная компания СДЭК:\n'
+        if 'errors' in sdek_data.keys():
+            sdek_text += 'По данному направлению при заданных условиях нет доступных тарифов'
+            await context.bot.send_message(chat_id=update.effective_user.id, text=sdek_text)
+        else:
+            if ztu:
+                sdek_text += '!Расчет произведен без учета стоимости ЗТУ\n'
+            for el in sdek_data['tariff_codes']:
+                if (home_take and home_delive and 'дверь-дверь' in el['tariff_name']) or \
+                        (home_take and not home_delive and 'дверь-склад' in el['tariff_name']) or\
+                        (not home_take and home_delive and 'склад-дверь' in el['tariff_name']) or\
+                        (not home_take and not home_delive and 'склад-склад' in el['tariff_name']):
+                    sdek_text += f'{el["tariff_name"]}\n' \
+                                 f'{el["tariff_description"] if "tariff_decription" in el.keys() else "Описание тарифа отсутствует"}\n' \
+                                 f'{el["delivery_sum"]}р\n' \
+                                 f'Максимальное время доставки в днях: {el["period_max"]}\n\n'
+            await context.bot.send_message(chat_id=update.effective_user.id, text=sdek_text)
         return ConversationHandler.END
     except Exception as ex:
         print(ex)
@@ -373,7 +388,6 @@ async def not_understand(update, context):
 
 
 def main():
-    global db_session
     global db_sess
     db_session.global_init("db/users.db")
     db_sess = db_session.create_session()

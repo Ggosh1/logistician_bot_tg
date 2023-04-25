@@ -1,6 +1,4 @@
-import json
 import requests
-import schedule
 import datetime
 from config import SDEK_CODES
 time_now = str(datetime.datetime.now())
@@ -29,31 +27,24 @@ def get_city_code(city):
     return SDEK_CODES[city]
 
 
-def parse_packages(height, width, length, weight, amount):
-    return [{"height": height, "length": length, "weight": weight, "width": width} for _ in range(amount)]
-
-
-def get_info_delivery(from_location, to_location, *args):
+def get_info_delivery(from_location, to_location, height, width, length, weight, amount):
     calculator_url = 'https://api.edu.cdek.ru/v2/calculator/tarifflist'
-    packages = parse_packages(*args)
+    packages = [{"height": height, "length": length, "weight": weight, "width": width} for _ in range(amount)]
     try:
         code_from_location = get_city_code(from_location)
         code_to_location = get_city_code(to_location)
     except KeyError:
         return f'Доставки в город {to_location}, либо доставки из города {from_location} нет'
     j = {
-        "type": "2",
-        "currency": "1",
+        "type": 2,
+        "currency": 1,
         "from_location": {
-            "code": f'{code_from_location}'
+            "code": code_from_location
         },
         "to_location": {
-            "code": f'{code_to_location}'
+            "code": code_to_location
         },
-        "packages": f'{packages}'
+        "packages": packages
     }
-    return requests.post(url=calculator_url, json=j)
-
-
-update_token()
-print(get_token())
+    print(j)
+    return requests.post(url=calculator_url, json=j, headers={"Authorization": f"Bearer {get_token()}"}).json()
