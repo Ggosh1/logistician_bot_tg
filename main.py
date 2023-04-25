@@ -1,19 +1,16 @@
 import logging
-from telegram.ext import Application, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
-import boxberry_api
-from config import BOT_TOKEN, boxberry_acess_token, deallines_acess_token, deallines_login, deallines_password
-from telegram.ext import CommandHandler
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-import pec_api
+
 import schedule
-from sdek_api import update_token, get_token
+from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
+from telegram.ext import CommandHandler
+
+import boxberry_api
 import geocoder_api
-import deallines_api
-from data import db_session
+import pec_api
+from config import BOT_TOKEN, boxberry_acess_token
 from data.users import User
-
-
-
+from sdek_api import update_token, get_token, get_info_delivery
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARNING
@@ -79,8 +76,8 @@ async def chosen_option(update, context):
             await update.message.reply_html(f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
         else:
             await update.message.reply_html(f'Нашим ботом уже воспользовалось {len(users)} человек!\n'
-                                        f'Средняя оценка наших пользователей: {round(rate_sum / rated_users, 2)}\n'
-                                        f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
+                                            f'Средняя оценка наших пользователей: {round(rate_sum / rated_users, 2)}\n'
+                                            f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
         return 10
     else:
         reply_keyboard = [['Сравнить варианты доставки', 'чето'],
@@ -301,8 +298,8 @@ async def calculate(update, context):
         if 'periods_days' in info.keys():
             auto_time = info['periods_days']
         text2 = f'Транспортная компания: ПЭК:\n' \
-        f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
-        f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
+                f'Автоперевозка: {"недоступна" if not auto_enabled else str(auto_cost) + f"р; срок в днях:"} {auto_time}\n' \
+                f'Авиаперевозка: {"недоступна" if not avia_enabled else str(avia_cost) + "р"}'  # незнаю какой здесь ключ
         await context.bot.send_message(chat_id=update.effective_user.id,
                                        text=text2)
     except pec_api.NoDeliveryToThisCity as err:
@@ -314,7 +311,8 @@ async def calculate(update, context):
         else:
             is_target = True
         info = boxberry_api.get_info_delivery(token=boxberry_acess_token, weight=weight * 1000, city_from=city_from,
-                                              city_to=city_to, height=height * 0.01, width=width * 0.01, depth=long * 0.01, is_target=True)
+                                              city_to=city_to, height=height * 0.01, width=width * 0.01,
+                                              depth=long * 0.01, is_target=True)
         text1 = ''
         if home_take:
             text1 = '\nКомпания Boxberry осуществляет забор груза только из ПВЗ (пункта выдачи заказа)'
@@ -322,10 +320,18 @@ async def calculate(update, context):
             text1 += '\n' + '!В стоимость не включена цена защитной транспортной упаковки'
         text2 = f'\nТранспортная компания Boxberry:' \
                 f'\n!Данная стоимость актуальная для одного товарного места' \
-                f'{text1}'\
+                f'{text1}' \
                 f'\nАвтоперевозка: {info["price"]}р\n' \
                 f'Срок доставки в днях: {info["delivery_period"]}'
         await context.bot.send_message(chat_id=update.effective_user.id, text=text2)
+
+    except Exception as ex:
+        print(ex)
+        await not_understand(update, context)
+    try:
+        sdek_data = get_info_delivery(city_from, city_to, height=height, width=width, length=long,
+                                  amount=places, weight=weight)
+        
         return ConversationHandler.END
     except Exception as ex:
         print(ex)
@@ -394,14 +400,11 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("help", help))
     application.run_polling()
-    sdek_acess_token = ''
-    schedule.every(49).minutes.do(get_token)
+    sdek_access_token = get_token()
     schedule.every(49).minutes.do(update_token)
     while True:
         schedule.run_pending()
 
 
 if __name__ == '__main__':
-    session_id = deallines_api.authorization(deallines_acess_token, deallines_login, deallines_password)
-    print(session_id, '###')
     main()
