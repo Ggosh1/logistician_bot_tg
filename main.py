@@ -80,8 +80,7 @@ async def chosen_option(update, context):
                                             f'Пожалуйста, оцените работу бота по шкале от 0 до 10')
         return 10
     else:
-        reply_keyboard = [['Сравнить варианты доставки', 'чето'],
-                          ['чето', 'чето']]
+        reply_keyboard = [['Сравнить варианты доставки', 'Оценить работу бота']]
         markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
         await update.message.reply_html('Извините, я Вас не понимаю...', reply_markup=markup)
         return 1
@@ -366,8 +365,9 @@ async def feedback(update, context):
             return 1
         else:
             await update.message.reply_text("Я умею считать только от 0 до 10")
-    except Exception:
+    except Exception as ex:
         await not_understand(update, context)
+        print(ex)
 
 
 async def help(update, context):
@@ -414,6 +414,7 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("help", help))
     application.run_polling()
+    sdek_api.update_token()
     sdek_access_token = get_token()
     schedule.every(49).minutes.do(update_token)
     while True:
